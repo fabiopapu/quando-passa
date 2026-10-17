@@ -5,19 +5,19 @@
   function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
   function annuncia(msg) { var a = $("annuncio"); a.textContent = ""; setTimeout(function () { a.textContent = msg; }, 80); }
   function nomeF(i) { return D.fermate[i].replace(/ - /g, ", "); }
-  // Elenco dei prossimi 14 giorni col nome del giorno della settimana: "Oggi, sabato 17 ottobre", "lunedì 19 ottobre"...
+  // Una settimana: "Oggi", "Domani", poi solo il nome del giorno ("Lunedì", "Martedì"...)
   function riempiGiorni() {
     var sel = $("giorno"), scelto = sel.value ? new Date(Date.now() + Number(sel.value) * 864e5).toDateString() : null;
     sel.textContent = "";
-    for (var k = 0; k < 14; k++) {
+    for (var k = 0; k < 7; k++) {
       var d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + k);
-      var nome = d.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
+      var nome = d.toLocaleDateString("it-IT", { weekday: "long" });
       var o = document.createElement("option"); o.value = String(k);
-      o.textContent = k === 0 ? "Oggi, " + nome : k === 1 ? "Domani, " + nome : nome.charAt(0).toUpperCase() + nome.slice(1);
+      o.textContent = k === 0 ? "Oggi" : k === 1 ? "Domani" : nome.charAt(0).toUpperCase() + nome.slice(1);
       sel.appendChild(o);
     }
     sel.value = "0";
-    if (scelto) for (var j = 0; j < 14; j++) { var x = new Date(); x.setDate(x.getDate() + j); if (x.toDateString() === scelto) sel.value = String(j); }
+    if (scelto) for (var j = 0; j < 7; j++) { var x = new Date(); x.setDate(x.getDate() + j); if (x.toDateString() === scelto) sel.value = String(j); }
     giornoCaricato = new Date().toDateString();
   }
   var giornoCaricato = null;
@@ -101,6 +101,7 @@
   // --- risultati
   function descriviViaggio(v, conDa, conA) {
     var t1 = v[0], ult = v[v.length - 1];
+    conDa = conA = true;  // la fermata precisa (con la via, quando il PDF la scrive) va sempre detta
     var s = QP.hhmm(t1.parte) + ", arrivo alle " + QP.hhmm(ult.arriva) + " (" + QP.durata(ult.arriva - t1.parte) + ")";
     var fine = conA ? ", scendi " + a_(nomeF(ult.a)) : "";
     if (v.length === 1) s += ". " + linea(t1) + (conDa ? ", da " + nomeF(t1.da) : "") + fine + ".";
@@ -141,10 +142,15 @@
         .sort(function (x, y) { return x.prossime[0].t - y.prossime[0].t; });
       return { g: g, now: now, gruppi: gruppi };
     }
-    var andata = QP.viaggi(D, da, sel.a.ids, d, now);
+    var andata = QP.viaggi(D, da, sel.a.ids, d, now), domani = false;
+    // oggi non ci sono più bus: mostra subito quelli di domani invece di una pagina vuota
+    if (!andata.length && $("giorno").value === "0" && !$("ora").value) {
+      d = new Date(d.getTime() + 864e5); now = 0; domani = true;
+      andata = QP.viaggi(D, da, sel.a.ids, d, 0);
+    }
     var dopoR = andata.length ? andata[0][andata[0].length - 1].arriva : now;
     var ritorno = QP.viaggi(D, sel.a.ids, da, d, dopoR);
-    return { g: g, now: now, andata: andata, ritorno: ritorno, dopoR: dopoR };
+    return { g: g, now: now, andata: andata, ritorno: ritorno, dopoR: dopoR, domani: domani };
   }
 
   function disegna() {
@@ -157,13 +163,20 @@
       (c.g.fuoriCalendario ? " Attenzione: il calendario scolastico non è aggiornato per quest'anno." : "");
     var tutti = sel.da.ids.concat(sel.a ? sel.a.ids : []);
     var av = $("avvisi-box"); av.textContent = "";
-    (D.avvisi || []).filter(function (a) { return a.fermate.some(function (f) { return tutti.indexOf(f) >= 0; }); }).forEach(function (a) {
-      var p = el("p", "alert"); p.appendChild(document.createTextNode("Avviso Arriva" + (a.data ? " del " + a.data.split("-").reverse().join("/") : "") + ": "));
-      var l = el("a", null, a.titolo); l.href = a.url; l.target = "_blank"; l.rel = "noopener"; p.appendChild(l); av.appendChild(p);
-    });
+    var avvisi = (D.avvisi || []).filter(function (a) { return a.fermate.some(function (f) { return tutti.indexOf(f) >= 0; }); });
+    if (avvisi.length) {  // chiusi: si aprono solo se li vuoi leggere, e stanno sotto gli orari
+      var det = el("details", "alert"), sum = el("summary", null, "Avvisi Arriva per queste fermate: " + avvisi.length + ". Premi per aprirli.");
+      det.appendChild(sum);
+      avvisi.forEach(function (a) {
+        var p = el("p"); p.appendChild(document.createTextNode((a.data ? a.data.split("-").reverse().join("/") + ": " : "")));
+        var l = el("a", null, a.titolo); l.href = a.url; l.target = "_blank"; l.rel = "noopener"; p.appendChild(l); det.appendChild(p);
+      });
+      av.appendChild(det);
+    }
     var mDa = sel.da.ids.length > 1, mA = sel.a && sel.a.ids.length > 1;
     if (sel.a) {
-      blocco(box, "Andata: da " + sel.da.breve + " " + a_(sel.a.breve), "andata", c.andata, mDa, mA,
+      if (c.domani) box.appendChild(el("p", "box", "Oggi non ci sono più bus per questo tragitto. Ecco quelli di domani."));
+      blocco(box, (c.domani ? "Domani, andata" : "Andata") + ": da " + sel.da.breve + " " + a_(sel.a.breve), "andata", c.andata, mDa, mA,
         "Nessun bus " + (oggi && !$("ora").value ? "da adesso a fine giornata" : "in questo giorno dopo l'orario scelto") + " per questo tragitto, anche con un cambio.");
       blocco(box, "Ritorno: da " + sel.a.breve + " " + a_(sel.da.breve) + (c.andata.length ? ", dopo il tuo arrivo delle " + QP.hhmm(c.dopoR) : ""),
         "ritorno", c.ritorno, mA, mDa, "Nessun bus di ritorno in questo giorno dopo quell'ora.");
@@ -175,7 +188,7 @@
         var li = el("li"), p0 = gr.prossime[0];
         var o = el("span", "orario", QP.hhmm(p0.t)); o.setAttribute("aria-hidden", "true"); li.appendChild(o);
         li.appendChild(el("span", null, "Alle " + QP.hhmm(p0.t) + ", " + (gr.linea.numero ? "Linea " + gr.linea.numero : "Linea " + gr.linea.nome) + " verso " + gr.verso.replace(/ - /g, ", ") +
-          (mDa ? ", da " + nomeF(p0.da) : "") +
+          ", da " + nomeF(p0.da) +
           (oggi && !$("ora").value ? ", " + QP.traQuanto(p0.t - c.now) : "") +
           (gr.prossime.length > 1 ? ". Poi alle " + gr.prossime.slice(1, 3).map(function (x) { return QP.hhmm(x.t); }).join(" e alle ") : "") + "." +
           (p0.dubbio ? " Corsa da verificare: " + p0.dubbio + "." : "")));
@@ -196,10 +209,10 @@
     if (!sel.a) {
       if (!c.gruppi.length) return "Nessun'altra partenza da " + sel.da.breve + ".";
       return "Partenze da " + sel.da.breve + ". " + c.gruppi.slice(0, 4).map(function (gr) {
-        return (gr.linea.numero ? "Linea " + gr.linea.numero : "Linea " + gr.linea.nome) + " verso " + gr.verso.replace(/ - /g, ", ") + " alle " + QP.hhmm(gr.prossime[0].t) + (mDa ? " da " + nomeF(gr.prossime[0].da) : "");
+        return (gr.linea.numero ? "Linea " + gr.linea.numero : "Linea " + gr.linea.nome) + " verso " + gr.verso.replace(/ - /g, ", ") + " alle " + QP.hhmm(gr.prossime[0].t) + " da " + nomeF(gr.prossime[0].da);
       }).join(". ") + ".";
     }
-    return "Andata da " + sel.da.breve + " " + a_(sel.a.breve) + ": " + (c.andata.length ? prime(c.andata, mDa, mA) : "nessun bus.") +
+    return (c.domani ? "Oggi non ci sono più bus. Domani, andata da " : "Andata da ") + sel.da.breve + " " + a_(sel.a.breve) + ": " + (c.andata.length ? prime(c.andata, mDa, mA) : "nessun bus.") +
       " Ritorno: " + (c.ritorno.length ? prime(c.ritorno, mA, mDa) : "nessun bus dopo il tuo arrivo.");
   }
 
@@ -226,7 +239,10 @@
     if (!sel.da || !sel.a) { annuncia("Per invertire scegli sia la partenza sia l'arrivo."); return; }
     var x = sel.da; sel.da = sel.a; sel.a = x; $("da").value = sel.da.breve; $("a").value = sel.a.breve; cerca(true);
   });
-  $("giorno").addEventListener("change", function () { if (sel.da) cerca(false); });
+  $("giorno").addEventListener("change", function () {
+    $("ora").value = "";
+    if (sel.da) { cerca(false); annuncia($("giorno").options[$("giorno").selectedIndex].text + ", orari " + ($("giorno").value === "0" ? "da adesso" : "da inizio giornata") + ". " + frase(calcola())); }
+  });
   $("ora").addEventListener("change", function () { if (sel.da) cerca(false); });
   $("leggi").addEventListener("click", function () { annuncia(frase(disegna())); });
   $("salva").addEventListener("click", function () {

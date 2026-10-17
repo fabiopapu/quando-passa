@@ -59,6 +59,8 @@ ol.viaggi li { background: var(--surface); border-left: 6px solid var(--accent);
 .box { padding: 12px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
 .alert { padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); border-left: 6px solid var(--warn); }
 .alert a { color: var(--fg); }
+details.alert summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; }
+details.alert p { margin-top: 8px; }
 .info { font-size: 1rem; color: var(--muted); display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 16px; }
 .info h2 { color: var(--fg); font-size: 1.3rem; }
 .info a { color: var(--fg); }
@@ -119,8 +121,8 @@ ol.viaggi li { background: var(--surface); border-left: 6px solid var(--accent);
       <button type="button" id="leggi">Leggi i risultati</button>
       <button type="button" class="sec" id="salva">Salva questo tragitto</button>
     </div>
-    <div id="avvisi-box" class="field"></div>
     <div id="esiti" class="field"></div>
+    <div id="avvisi-box" class="field"></div>
   </section>
 
   <div id="annuncio" class="sr" role="status" aria-live="polite"></div>

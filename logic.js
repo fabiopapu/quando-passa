@@ -150,9 +150,11 @@ var QP = (function () {
         return meglio && strett;
       });
     });
+    // lo stesso bus può comparire in due orari (es. brochure Torino e Milano): una sola volta, preferendo la linea col numero
+    out.sort(function (a, b) { return a.filter(function (t) { return !t.linea.numero; }).length - b.filter(function (t) { return !t.linea.numero; }).length; });
     var visti = {};
     out = out.filter(function (v) {
-      var k = v.map(function (t) { return t.linea.id + t.parte + "-" + t.arriva; }).join("|");
+      var k = v.map(function (t) { return t.da + "@" + t.parte + ">" + t.a + "@" + t.arriva; }).join("|");
       if (visti[k]) return false; visti[k] = 1; return true;
     });
     out.sort(function (a, b) { return a[0].parte - b[0].parte || a[a.length - 1].arriva - b[b.length - 1].arriva; });
@@ -161,30 +163,41 @@ var QP = (function () {
 
   // Ricerca: comuni (tutte le fermate del paese) e singole fermate.
   function comune(nome) { return nome.split(" - ")[0].trim(); }
+  // Quante corse passano da ogni fermata: serve a mettere in cima le fermate principali (autostazioni, stazioni).
+  function traffico(D) {
+    if (D._traffico) return D._traffico;
+    var n = D.fermate.map(function () { return 0; });
+    D.linee.forEach(function (L) { (L.versioni[0] || { corse: [] }).corse.forEach(function (c) { c.s.forEach(function (x) { n[x[0]]++; }); }); });
+    return (D._traffico = n);
+  }
+  // Elenco per il menu: prima il paese (tutte le sue fermate, scritto solo col nome del paese),
+  // poi le singole fermate, le più servite per prime.
   function cerca(D, testo, max) {
     var q = norm(testo).split(" ").filter(Boolean);
     if (!q.length) return [];
-    var multiSede = D.fermate_sede ? D.fermate_sede.some(function (x) { return x !== D.fermate_sede[0]; }) : false;
-    var sede = function (i) { return D.fermate_sede ? D.fermate_sede[i] : "aosta"; };
-    var etSede = function (s) { return multiSede && D.sedi ? ", zona " + D.sedi[s] : ""; };
-    var comuni = {}, singole = [];
+    var tr = traffico(D), comuni = {}, singole = [];
     D.fermate.forEach(function (f, i) {
       var n = norm(f);
       if (!q.every(function (w) { return n.indexOf(w) >= 0; })) return;
+      if (!tr[i]) return;  // fermata senza corse nell'orario in vigore
       singole.push(i);
-      var c = comune(f), key = c + "|" + sede(i);
-      if (q.every(function (w) { return norm(c).indexOf(w) >= 0; })) (comuni[key] || (comuni[key] = { nome: c, sede: sede(i), ids: [] })).ids.push(i);
+      var c = comune(f), k = norm(c);
+      if (q.every(function (w) { return k.indexOf(w) >= 0; })) (comuni[k] || (comuni[k] = { nome: c, ids: [], peso: 0 })).ids.push(i), comuni[k].peso += tr[i];
     });
-    var res = [];
-    Object.keys(comuni).forEach(function (k) {
-      var c = comuni[k];
-      if (c.ids.length > 1) res.push({ etichetta: c.nome + ", tutte le " + c.ids.length + " fermate" + etSede(c.sede), breve: c.nome, ids: c.ids });
-    });
-    res.sort(function (a, b) { return a.breve.length - b.breve.length; });
-    singole.sort(function (a, b) { return D.fermate[a].length - D.fermate[b].length; });
-    singole.forEach(function (i) {
-      var n = D.fermate[i].replace(/ - /g, ", ");
-      res.push({ etichetta: n + etSede(sede(i)), breve: n, ids: [i] });
+    var res = Object.keys(comuni).map(function (k) { return comuni[k]; })
+      .filter(function (c) { return c.ids.length > 1; })
+      .sort(function (a, b) {  // il paese che inizia con quanto scritto prima, poi il più servito
+        var pa = norm(a.nome).indexOf(q[0]) === 0 ? 0 : 1, pb = norm(b.nome).indexOf(q[0]) === 0 ? 0 : 1;
+        return pa - pb || b.peso - a.peso;
+      })
+      .map(function (c) { return { etichetta: c.nome, breve: c.nome, ids: c.ids }; });
+    // la stessa fermata può esistere in due zone (es. Aosta Autostazione): una sola voce con tutti e due gli id
+    var viste = {};
+    singole.sort(function (a, b) { return tr[b] - tr[a]; }).forEach(function (i) {
+      var n = D.fermate[i].replace(/ - /g, ", "), k = norm(n);
+      if (viste[k]) { viste[k].ids.push(i); return; }
+      viste[k] = { etichetta: n, breve: n, ids: [i] };
+      res.push(viste[k]);
     });
     return res.slice(0, max || 15);
   }
