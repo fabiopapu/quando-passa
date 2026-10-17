@@ -56,6 +56,7 @@ var QP = (function () {
       if (r.tipo === "no_giorni" && r.giorni.indexOf(g.wd) >= 0) return 0;
       if (r.tipo === "periodo" && (g.data < r.dal || g.data > r.al)) return 0;
       if (r.tipo === "no_date" && r.date.indexOf(g.data.slice(5)) >= 0) return 0;
+      if (r.tipo === "no_periodo" && g.data.slice(5) >= r.dal && g.data.slice(5) <= r.al) return 0;
     }
     return incerto ? 2 : 1;
   }
