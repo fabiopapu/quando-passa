@@ -3,7 +3,7 @@
   "short_name": "Quando Passa",
   "lang": "it",
   "description": "Orari dei bus Arriva: parti da, arrivi a, andata e ritorno. Accessibile con screen reader.",
-  "start_url": "./",
+  "start_url": "./?app=1",
   "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",

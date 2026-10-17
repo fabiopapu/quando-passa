@@ -244,7 +244,15 @@
   }, 60000);
   // --- installazione come app (PWA)
   var promptInstall = null;
-  function installata() { return (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true; }
+  // Dentro l'app installata il pulsante non serve. L'app si apre con "?app=1" (start_url nel manifest);
+  // i modi di visualizzazione coprono le installazioni fatte prima di quel parametro.
+  function installata() {
+    var modi = ["standalone", "fullscreen", "minimal-ui", "window-controls-overlay"];
+    var media = window.matchMedia && modi.some(function (m) { return matchMedia("(display-mode: " + m + ")").matches; });
+    var daApp = /[?&]app=1\b/.test(location.search) || document.referrer.indexOf("android-app://") === 0;
+    try { if (daApp) sessionStorage.setItem("qp-app", "1"); daApp = daApp || sessionStorage.getItem("qp-app") === "1"; } catch (e) {}
+    return media || navigator.standalone === true || daApp;
+  }
   function istruzioni() {
     var ua = navigator.userAgent;
     if (/iPhone|iPad|iPod/.test(ua)) return "Su iPhone e iPad: tocca il pulsante Condividi del browser, poi scegli Aggiungi alla schermata Home.";
@@ -260,6 +268,7 @@
   }
   window.addEventListener("beforeinstallprompt", function (e) {
     e.preventDefault(); promptInstall = e;
+    if (installata()) return;
     $("installa").hidden = false;
     $("installa-aiuto").textContent = "Premi il pulsante: il browser ti chiederà la conferma e l'app comparirà tra le tue app.";
   });
