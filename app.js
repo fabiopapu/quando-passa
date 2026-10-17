@@ -290,9 +290,12 @@
     if (/Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome/.test(ua)) return "In Safari su Mac: apri il menu File e scegli Aggiungi al Dock.";
     return "Apri il menu del browser e scegli Installa app, oppure Aggiungi a schermata Home.";
   }
-  if (!installata()) {
+  // Il riquadro compare solo nel browser, quando il browser stesso dice che l'app si può installare
+  // (evento beforeinstallprompt, che nell'app già installata non arriva mai). Su iPhone quell'evento non
+  // esiste: lì si mostrano le istruzioni, ma solo fuori dall'app installata.
+  if (!installata() && /iPhone|iPad|iPod/.test(navigator.userAgent) && navigator.standalone === false) {
     $("installa").hidden = false;
-    setTimeout(function () { if (!promptInstall) $("installa-aiuto").textContent = istruzioni(); }, 2000);
+    $("installa-aiuto").textContent = istruzioni();
   }
   window.addEventListener("beforeinstallprompt", function (e) {
     e.preventDefault(); promptInstall = e;
