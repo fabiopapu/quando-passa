@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quando Passa</title>
+<meta name="description" content="Orari dei bus Arriva: parti da, arrivi a, andata e ritorno. Accessibile con screen reader.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ffffff">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Condensed:wght@700&display=swap">
+<style>
+/* Segnaletica su fondo bianco: azzurro acceso per orari e azioni, una fascia a strisce come quelle delle fermate. */
+:root {
+  --bg: #ffffff; --surface: #f2f7fb; --surface2: #e3eef6; --fg: #0d1615; --muted: #465958; --line: #c3d3df;
+  --accent: #008eaa; --accent-ink: #ffffff; --accent-txt: #007c94;  /* Pantone 3135 C */ --warn: #8a5a00; --warn-bg: #fff3d6; --focus: #c25e00;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", Roboto, Arial, sans-serif;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); background: var(--bg); }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 1.125rem; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px; }
+main { max-width: 38rem; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+header { padding-top: 22px; display: flex; flex-direction: column; gap: 8px; }
+header::before { content: ""; display: block; height: 14px; border-radius: 3px; margin-bottom: 10px;
+  background: repeating-linear-gradient(-45deg, var(--accent) 0 14px, transparent 14px 28px); }
+h1 { font-family: var(--font-display); font-size: clamp(2.8rem, 12vw, 4.2rem); line-height: .9; margin: 0; text-transform: uppercase;
+  letter-spacing: .01em; transform: skewX(-6deg); transform-origin: left; }
+h1 span { color: var(--accent-txt); }
+h2 { margin: 0; font-family: var(--font-display); font-size: 1.6rem; line-height: 1.1; text-transform: uppercase; letter-spacing: .02em; text-wrap: balance; }
+p { margin: 0; }
+.sub, .muted { color: var(--muted); }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.field { display: flex; flex-direction: column; gap: 8px; }
+label { font-weight: 700; font-size: 1.05rem; }
+input[type=search], select, input[type=time] { font: inherit; font-size: 1.15rem; color: var(--fg); background: var(--surface);
+  border: 2px solid var(--line); border-radius: 8px; padding: 12px; width: 100%; min-height: 54px; }
+input[type=search]:focus, select:focus, input[type=time]:focus { border-color: var(--accent); }
+.risultati { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+button { font: inherit; font-weight: 700; color: var(--accent-ink); background: var(--accent); border: 0; border-radius: 8px;
+  padding: 12px 18px; min-height: 54px; cursor: pointer; text-align: left; text-transform: uppercase; letter-spacing: .03em; }
+button:active { transform: translateY(1px); }
+button.sec { background: transparent; color: var(--fg); border: 2px solid var(--line); }
+.risultati button { width: 100%; background: var(--surface); color: var(--fg); border: 2px solid var(--line); font-weight: 400;
+  text-transform: none; letter-spacing: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.row > .field { flex: 1 1 9rem; min-width: 0; }
+#modulo { background: var(--surface); border-radius: 12px; padding: 16px; border: 1px solid var(--line); gap: 16px; }
+#modulo .risultati button { background: var(--surface2); }
+ol.viaggi { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+ol.viaggi li { background: var(--surface); border-left: 6px solid var(--accent); border-radius: 4px 10px 10px 4px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 4px; }
+.orario { font-family: var(--font-display); font-size: 2.4rem; line-height: 1; font-variant-numeric: tabular-nums; display: block;
+  color: var(--accent-txt); letter-spacing: .01em; }
+.box { padding: 12px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.alert { padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); border-left: 6px solid var(--warn); }
+.alert a { color: var(--fg); }
+.info { font-size: 1rem; color: var(--muted); display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 16px; }
+.info h2 { color: var(--fg); font-size: 1.3rem; }
+.info a { color: var(--fg); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } button:active { transform: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Quando <span>Passa</span></h1>
+    <p class="sub">Bus Arriva: scrivi da dove parti e dove vuoi arrivare.</p>
+  </header>
+
+  <section id="installa" class="box" hidden aria-labelledby="inst-t">
+    <h2 id="inst-t">Installa l'app</h2>
+    <p id="installa-aiuto">Mettila nella schermata Home come una normale app: si apre più in fretta e funziona anche senza connessione.</p>
+    <div class="row"><button type="button" id="installa-btn">Installa l'app</button></div>
+  </section>
+
+  <p id="caricamento" class="box">Carico gli orari…</p>
+
+  <section id="preferiti" class="field" hidden aria-labelledby="pref-t">
+    <h2 id="pref-t">I tuoi tragitti</h2>
+    <ul class="risultati" id="pref-lista"></ul>
+  </section>
+
+  <form id="modulo" class="field" autocomplete="off">
+    <div class="field">
+      <label for="da">Parto da</label>
+      <input type="search" id="da" placeholder="Es. Arvier, Col du Mont">
+      <ul class="risultati" id="da-lista" aria-label="Partenze trovate"></ul>
+    </div>
+    <div class="field">
+      <label for="a">Arrivo a (facoltativo: se lo lasci vuoto vedi tutte le partenze)</label>
+      <input type="search" id="a" placeholder="Es. Aosta, Courmayeur">
+      <ul class="risultati" id="a-lista" aria-label="Arrivi trovati"></ul>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="giorno">Giorno</label>
+        <select id="giorno"><option value="0">Oggi</option></select>
+      </div>
+      <div class="field">
+        <label for="ora">Parto dopo le</label>
+        <input type="time" id="ora">
+      </div>
+    </div>
+    <div class="row">
+      <button type="submit" id="cerca-btn">Cerca orari</button>
+      <button type="button" class="sec" id="inverti">Inverti partenza e arrivo</button>
+    </div>
+  </form>
+
+  <section id="risposta" hidden class="field" aria-labelledby="ris-t">
+    <h2 id="ris-t" class="sr">Risultati</h2>
+    <p id="oggi" class="box"></p>
+    <div class="row">
+      <button type="button" id="leggi">Leggi i risultati</button>
+      <button type="button" class="sec" id="salva">Salva questo tragitto</button>
+    </div>
+    <div id="avvisi-box" class="field"></div>
+    <div id="esiti" class="field"></div>
+  </section>
+
+  <div id="annuncio" class="sr" role="status" aria-live="polite"></div>
+
+  <section class="info" aria-labelledby="info-t">
+    <h2 id="info-t">Da dove vengono questi orari</h2>
+    <p id="stato-dati"></p>
+    <p>Il server legge ogni giorno gli orari ufficiali pubblicati dalle sedi Arriva, controlla che siano coerenti e passa da solo al nuovo orario quando entra in vigore. Feriali, festivi e giorni di scuola sono calcolati in automatico. I viaggi con un cambio considerano almeno 3 minuti per cambiare bus alla stessa fermata.</p>
+    <p>Sono orari programmati, non la posizione reale dei bus.</p>
+    <p>App non ufficiale: non è un servizio Arriva, usa gli orari che Arriva pubblica sui suoi siti.</p>
+  </section>
+</main>
+<script src="logic.js"></script>
+<script src="app.js"></script>
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});</script>
+</body>
+</html>
