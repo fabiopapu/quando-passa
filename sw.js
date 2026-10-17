@@ -1,5 +1,5 @@
 // Prima la rete (orari sempre aggiornati), la copia salvata se manca la connessione.
-const CACHE = "quando-passa-v3";
+const CACHE = "quando-passa-v4";
 const FILES = ["./", "./index.html", "./app.js", "./logic.js", "./manifest.json", "./orari.json", "./icon-192.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener("activate", e => {

@@ -60,7 +60,8 @@
       timer = setTimeout(function () {
         ul.textContent = "";
         if (!D || input.value.trim().length < 2) return;
-        var res = QP.cerca(D, input.value, 10);
+        var altro = campo === "da" ? sel.a : sel.da;
+        var res = QP.cerca(D, input.value, 10, altro && altro.ids);
         if (!res.length) {
           var msg = "Nessuna fermata trovata per " + input.value.trim() + ". " + copertura();
           ul.appendChild(el("li", "box", msg)); annuncia(msg); return;
@@ -142,15 +143,23 @@
         .sort(function (x, y) { return x.prossime[0].t - y.prossime[0].t; });
       return { g: g, now: now, gruppi: gruppi };
     }
-    var andata = QP.viaggi(D, da, sel.a.ids, d, now), domani = false;
+    var a = sel.a.ids, andata = QP.viaggi(D, da, a, d, now), domani = false, allargato = false;
+    // dalla fermata scelta non passa nessun bus per quel tragitto: prova le altre fermate degli stessi paesi
+    if (!andata.length) {
+      var da2 = QP.stessoPaese(D, da), a2 = QP.stessoPaese(D, a);
+      if (da2.length > da.length || a2.length > a.length) {
+        var prova = QP.viaggi(D, da2, a2, d, now);
+        if (prova.length || $("giorno").value === "0") { da = da2; a = a2; andata = prova; allargato = true; }
+      }
+    }
     // oggi non ci sono più bus: mostra subito quelli di domani invece di una pagina vuota
     if (!andata.length && $("giorno").value === "0" && !$("ora").value) {
       d = new Date(d.getTime() + 864e5); now = 0; domani = true;
-      andata = QP.viaggi(D, da, sel.a.ids, d, 0);
+      andata = QP.viaggi(D, da, a, d, 0);
     }
     var dopoR = andata.length ? andata[0][andata[0].length - 1].arriva : now;
-    var ritorno = QP.viaggi(D, sel.a.ids, da, d, dopoR);
-    return { g: g, now: now, andata: andata, ritorno: ritorno, dopoR: dopoR, domani: domani };
+    var ritorno = QP.viaggi(D, a, da, d, dopoR);
+    return { g: g, now: now, andata: andata, ritorno: ritorno, dopoR: dopoR, domani: domani, allargato: allargato };
   }
 
   function disegna() {
@@ -175,6 +184,7 @@
     }
     var mDa = sel.da.ids.length > 1, mA = sel.a && sel.a.ids.length > 1;
     if (sel.a) {
+      if (c.allargato) box.appendChild(el("p", "box", "Dalla fermata che hai scelto non passano bus per questo tragitto: ti mostro quelli dalle altre fermate dello stesso paese. Guarda da quale fermata parte ognuno."));
       if (c.domani) box.appendChild(el("p", "box", "Oggi non ci sono più bus per questo tragitto. Ecco quelli di domani."));
       blocco(box, (c.domani ? "Domani, andata" : "Andata") + ": da " + sel.da.breve + " " + a_(sel.a.breve), "andata", c.andata, mDa, mA,
         "Nessun bus " + (oggi && !$("ora").value ? "da adesso a fine giornata" : "in questo giorno dopo l'orario scelto") + " per questo tragitto, anche con un cambio.");
@@ -212,7 +222,8 @@
         return (gr.linea.numero ? "Linea " + gr.linea.numero : "Linea " + gr.linea.nome) + " verso " + gr.verso.replace(/ - /g, ", ") + " alle " + QP.hhmm(gr.prossime[0].t) + " da " + nomeF(gr.prossime[0].da);
       }).join(". ") + ".";
     }
-    return (c.domani ? "Oggi non ci sono più bus. Domani, andata da " : "Andata da ") + sel.da.breve + " " + a_(sel.a.breve) + ": " + (c.andata.length ? prime(c.andata, mDa, mA) : "nessun bus.") +
+    return (c.allargato ? "Dalla fermata scelta non passano bus per questo tragitto, ecco quelli dalle altre fermate dello stesso paese. " : "") +
+      (c.domani ? "Oggi non ci sono più bus. Domani, andata da " : "Andata da ") + sel.da.breve + " " + a_(sel.a.breve) + ": " + (c.andata.length ? prime(c.andata, mDa, mA) : "nessun bus.") +
       " Ritorno: " + (c.ritorno.length ? prime(c.ritorno, mA, mDa) : "nessun bus dopo il tuo arrivo.");
   }
 
@@ -267,7 +278,8 @@
     var media = window.matchMedia && modi.some(function (m) { return matchMedia("(display-mode: " + m + ")").matches; });
     var daApp = /[?&]app=1\b/.test(location.search) || document.referrer.indexOf("android-app://") === 0;
     try { if (daApp) sessionStorage.setItem("qp-app", "1"); daApp = daApp || sessionStorage.getItem("qp-app") === "1"; } catch (e) {}
-    return media || navigator.standalone === true || daApp;
+    if (media || navigator.standalone === true || daApp) { store("qp-installata", true); return true; }
+    return store("qp-installata") === true;  // installata su questo dispositivo o pulsante nascosto a mano
   }
   function istruzioni() {
     var ua = navigator.userAgent;
@@ -288,7 +300,8 @@
     $("installa").hidden = false;
     $("installa-aiuto").textContent = "Premi il pulsante: il browser ti chiederà la conferma e l'app comparirà tra le tue app.";
   });
-  window.addEventListener("appinstalled", function () { $("installa").hidden = true; annuncia("App installata. La trovi tra le tue app."); });
+  window.addEventListener("appinstalled", function () { store("qp-installata", true); $("installa").hidden = true; annuncia("App installata. La trovi tra le tue app."); });
+  $("installa-no").addEventListener("click", function () { store("qp-installata", true); $("installa").hidden = true; annuncia("Fatto, il riquadro per installare non comparirà più su questo dispositivo."); });
   $("installa-btn").addEventListener("click", function () {
     if (!promptInstall) { annuncia(istruzioni()); return; }
     promptInstall.prompt();

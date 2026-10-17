@@ -119,10 +119,12 @@ var QP = (function () {
       (X.perFermata[o] || []).forEach(function (tp) {
         var T = tp[0], i = tp[1];
         if (T.s[i][1] < dopo) return;
-        // diretto
-        for (var j = i + 1; j < T.s.length; j++) {
-          if (isD[T.s[j][0]]) { out.push([tratta(T, i, j)]); return; }
-        }
+        // se hai scelto un paese intero, sali alla prima sua fermata dove passa il bus (di solito il capolinea)
+        for (var z = 0; z < i; z++) if (isO[T.s[z][0]] && T.s[z][1] >= dopo) return;
+        // diretto: scendi all'ultima fermata del paese di arrivo (es. Torino Porta Nuova, non la prima periferia)
+        var ultima = -1;
+        for (var j = i + 1; j < T.s.length; j++) if (isD[T.s[j][0]]) { ultima = j; if (destinazioni.length === 1) break; }
+        if (ultima > 0) { out.push([tratta(T, i, ultima)]); return; }
         // con un cambio: scendi a una fermata k e prendi un'altra corsa che arriva a destinazione
         for (var k = i + 1; k < T.s.length; k++) {
           var x = T.s[k][0], arr = T.s[k][1];
@@ -132,9 +134,9 @@ var QP = (function () {
             if (T2 === T || T2.L === T.L && verso(D, T2) === verso(D, T)) return;
             var t2 = T2.s[p][1];
             if (t2 < arr + CAMBIO_MIN || t2 > arr + CAMBIO_MAX) return;
-            for (var q = p + 1; q < T2.s.length; q++) {
-              if (isD[T2.s[q][0]]) { out.push([tratta(T, i, k), tratta(T2, p, q)]); return; }
-            }
+            var uq = -1;
+            for (var q = p + 1; q < T2.s.length; q++) if (isD[T2.s[q][0]]) { uq = q; if (destinazioni.length === 1) break; }
+            if (uq > 0) out.push([tratta(T, i, k), tratta(T2, p, uq)]);
           });
         }
       });
@@ -162,7 +164,22 @@ var QP = (function () {
   }
 
   // Ricerca: comuni (tutte le fermate del paese) e singole fermate.
-  function comune(nome) { return nome.split(" - ")[0].trim(); }
+  // "Aosta - Autostazione" -> "Aosta"; "TORINO Autostazione" (senza trattino) -> "Torino"
+  function comune(nome) {
+    var c = nome.split(" - ")[0].trim();
+    if (c === nome.trim()) {
+      var m = /^([A-ZÀ-Ý][A-ZÀ-Ý'’]{2,})\s/.exec(c);
+      if (m) c = m[1].charAt(0) + m[1].slice(1).toLowerCase();
+    }
+    return c;
+  }
+  // tutte le fermate dello stesso paese (in qualsiasi zona) delle fermate date
+  function stessoPaese(D, ids) {
+    var paesi = {}, out = [];
+    ids.forEach(function (i) { paesi[norm(comune(D.fermate[i]))] = 1; });
+    D.fermate.forEach(function (f, i) { if (paesi[norm(comune(f))]) out.push(i); });
+    return out;
+  }
   // Quante corse passano da ogni fermata: serve a mettere in cima le fermate principali (autostazioni, stazioni).
   function traffico(D) {
     if (D._traffico) return D._traffico;
@@ -172,10 +189,21 @@ var QP = (function () {
   }
   // Elenco per il menu: prima il paese (tutte le sue fermate, scritto solo col nome del paese),
   // poi le singole fermate, le più servite per prime.
-  function cerca(D, testo, max) {
+  // fermate servite dalle stesse linee delle fermate date (per mettere in cima quelle davvero collegate)
+  function collegate(D, ids) {
+    var su = {}, out = {};
+    ids.forEach(function (i) { su[i] = 1; });
+    D.linee.forEach(function (L) {
+      var corse = (L.versioni[0] || { corse: [] }).corse;
+      if (corse.some(function (c) { return c.s.some(function (x) { return su[x[0]]; }); }))
+        corse.forEach(function (c) { c.s.forEach(function (x) { out[x[0]] = 1; }); });
+    });
+    return out;
+  }
+  function cerca(D, testo, max, vicino) {
     var q = norm(testo).split(" ").filter(Boolean);
     if (!q.length) return [];
-    var tr = traffico(D), comuni = {}, singole = [];
+    var tr = traffico(D), comuni = {}, singole = [], col = vicino && vicino.length ? collegate(D, vicino) : null;
     D.fermate.forEach(function (f, i) {
       var n = norm(f);
       if (!q.every(function (w) { return n.indexOf(w) >= 0; })) return;
@@ -193,7 +221,7 @@ var QP = (function () {
       .map(function (c) { return { etichetta: c.nome, breve: c.nome, ids: c.ids }; });
     // la stessa fermata può esistere in due zone (es. Aosta Autostazione): una sola voce con tutti e due gli id
     var viste = {};
-    singole.sort(function (a, b) { return tr[b] - tr[a]; }).forEach(function (i) {
+    singole.sort(function (a, b) { return (col ? (col[b] ? 1 : 0) - (col[a] ? 1 : 0) : 0) || tr[b] - tr[a]; }).forEach(function (i) {
       var n = D.fermate[i].replace(/ - /g, ", "), k = norm(n);
       if (viste[k]) { viste[k].ids.push(i); return; }
       viste[k] = { etichetta: n, breve: n, ids: [i] };
@@ -210,6 +238,7 @@ var QP = (function () {
   function traQuanto(min) { return min <= 0 ? "adesso" : "tra " + durata(min); }
 
   return { infoGiorno: infoGiorno, versione: versione, circola: circola, partenze: partenze, viaggi: viaggi, cerca: cerca,
-    hhmm: hhmm, durata: durata, traQuanto: traQuanto, ymd: ymd, norm: norm, corseDelGiorno: corseDelGiorno };
+    hhmm: hhmm, durata: durata, traQuanto: traQuanto, ymd: ymd, norm: norm, corseDelGiorno: corseDelGiorno,
+    comune: comune, stessoPaese: stessoPaese };
 })();
 if (typeof module !== "undefined") module.exports = QP;
