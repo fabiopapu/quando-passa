@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Quando Passa</title>
 <meta name="description" content="Orari dei bus Arriva: parti da, arrivi a, andata e ritorno. Accessibile con screen reader.">
-<link rel="manifest" href="manifest.json?v=20261018-1610">
+<link rel="manifest" href="manifest.json?v=20261018-1620">
 <meta name="theme-color" content="#ffffff">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -20,6 +20,8 @@
   color-scheme: light;
 }
 * { box-sizing: border-box; }
+/* "hidden" deve vincere sempre, anche sugli elementi con display:flex (es. il riquadro Installa) */
+[hidden] { display: none !important; }
 html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); background: var(--bg); }
 body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 1.125rem; line-height: 1.5;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px; }
@@ -135,8 +137,8 @@ details.alert p { margin-top: 8px; }
     <p>App non ufficiale: non è un servizio Arriva, usa gli orari che Arriva pubblica sui suoi siti.</p>
   </section>
 </main>
-<script src="logic.js?v=20261018-1610"></script>
-<script src="app.js?v=20261018-1610"></script>
+<script src="logic.js?v=20261018-1620"></script>
+<script src="app.js?v=20261018-1620"></script>
 <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(function () {});</script>
 </body>
 </html>
