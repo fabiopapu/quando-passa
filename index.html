@@ -137,6 +137,6 @@ details.alert p { margin-top: 8px; }
 </main>
 <script src="logic.js"></script>
 <script src="app.js"></script>
-<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});</script>
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(function () {});</script>
 </body>
 </html>
