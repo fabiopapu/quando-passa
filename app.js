@@ -45,7 +45,9 @@
         D.linee.forEach(function (L) { sedi[L.sede] = 1; });
         $("stato-dati").textContent = "Ultimo controllo degli orari: " + g.toLocaleDateString("it-IT") + " alle " +
           g.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) + ". Linee caricate: " + D.linee.length +
-          ", zone: " + Object.keys(sedi).map(function (s) { return (D.sedi && D.sedi[s]) || s; }).join(", ") + ".";
+          ", zone: " + Object.keys(sedi).map(function (s) { return (D.sedi && D.sedi[s]) || s; }).join(", ") + "." +
+          // per capire i problemi: versione dell'app e se è aperta come app installata o nel browser
+          " Versione app: 18 ottobre, 16:00. Aperta come: " + (["standalone", "fullscreen", "minimal-ui"].some(function (m) { return window.matchMedia && matchMedia("(display-mode: " + m + ")").matches; }) ? "app installata" : "sito nel browser") + ".";
         mostraPreferiti();
         var ult = store("qp-ultimo");
         if (ult) imposta(ult, false);
