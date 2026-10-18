@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Quando Passa</title>
 <meta name="description" content="Orari dei bus Arriva: parti da, arrivi a, andata e ritorno. Accessibile con screen reader.">
-<link rel="manifest" href="manifest.json?v=20261018-1625">
+<link rel="manifest" href="manifest.json?v=20261018-1730">
 <meta name="theme-color" content="#ffffff">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -58,6 +58,11 @@ ol.viaggi li { background: var(--surface); border-left: 6px solid var(--accent);
   display: flex; flex-direction: column; gap: 4px; }
 .orario { font-family: var(--font-display); font-size: 2.4rem; line-height: 1; font-variant-numeric: tabular-nums; display: block;
   color: var(--accent-txt); letter-spacing: .01em; }
+dialog { width: min(40rem, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto; border: 2px solid #008EAA; border-radius: 12px; padding: 16px; background: var(--bg, #fff); color: var(--fg, #111); }
+dialog::backdrop { background: rgba(0,0,0,.5); }
+dialog h2 { margin-top: 0; }
+ol.passi { padding-left: 1.4em; display: flex; flex-direction: column; gap: 8px; }
+ol.viaggi li button.sec { margin-top: 6px; align-self: flex-start; }
 .box { padding: 12px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
 .alert { padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); border-left: 6px solid var(--warn); }
 .alert a { color: var(--fg); }
@@ -137,8 +142,8 @@ details.alert p { margin-top: 8px; }
     <p>App non ufficiale: non è un servizio Arriva, usa gli orari che Arriva pubblica sui suoi siti.</p>
   </section>
 </main>
-<script src="logic.js?v=20261018-1625"></script>
-<script src="app.js?v=20261018-1625"></script>
+<script src="logic.js?v=20261018-1730"></script>
+<script src="app.js?v=20261018-1730"></script>
 <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(function () {});</script>
 </body>
 </html>
