@@ -53,26 +53,35 @@
   }
 
   // --- ricerca fermate
+  // suggerimenti del sistema (datalist): sul telefono compaiono sopra la tastiera, come l'autocompletamento
   function collega(campo) {
-    var input = $(campo), ul = $(campo + "-lista"), timer;
+    var input = $(campo), ul = $(campo + "-lista"), timer, ultimi = [];
+    var dl = document.createElement("datalist"); dl.id = campo + "-suggerimenti"; document.body.appendChild(dl);
+    input.setAttribute("list", dl.id);
+    function scegli(r) {
+      sel[campo] = r; input.value = r.breve; ul.textContent = "";
+      if (campo === "da" && !sel.a) { $("a").focus(); annuncia("Partenza: " + r.etichetta + ". Ora scrivi dove vuoi arrivare, oppure premi Cerca orari."); }
+      else { cerca(true); }
+    }
     input.addEventListener("input", function () {
+      // hai scelto un suggerimento: è già la fermata giusta
+      var esatto = ultimi.filter(function (r) { return r.etichetta === input.value || r.breve === input.value; })[0];
+      if (esatto && sel[campo] !== esatto) { clearTimeout(timer); scegli(esatto); return; }
       sel[campo] = null; clearTimeout(timer);
       timer = setTimeout(function () {
         ul.textContent = "";
         if (!D || input.value.trim().length < 2) return;
         var altro = campo === "da" ? sel.a : sel.da;
         var res = QP.cerca(D, input.value, 10, altro && altro.ids);
+        ultimi = res; dl.textContent = "";
+        res.forEach(function (r) { var o = document.createElement("option"); o.value = r.etichetta; dl.appendChild(o); });
         if (!res.length) {
           var msg = "Nessuna fermata trovata per " + input.value.trim() + ". " + copertura();
           ul.appendChild(el("li", "box", msg)); annuncia(msg); return;
         }
         res.forEach(function (r) {
           var li = el("li"), b = el("button", null, r.etichetta); b.type = "button";
-          b.addEventListener("click", function () {
-            sel[campo] = r; input.value = r.breve; ul.textContent = "";
-            if (campo === "da" && !sel.a) { $("a").focus(); annuncia("Partenza: " + r.etichetta + ". Ora scrivi dove vuoi arrivare, oppure premi Cerca orari."); }
-            else { cerca(true); }
-          });
+          b.addEventListener("click", function () { scegli(r); });
           li.appendChild(b); ul.appendChild(li);
         });
         annuncia(res.length + (res.length === 1 ? " risultato: " : " risultati. Il primo è: ") + res[0].etichetta + ". Scorri sotto per scegliere.");
@@ -229,7 +238,14 @@
 
   function cerca(parla) {
     if (!D) return;
-    if (!sel.da) { annuncia("Prima scegli da dove parti dall'elenco sotto il campo Parto da."); $("da").focus(); return; }
+    function primo(campo) {
+      var v = $(campo).value.trim(); if (v.length < 2) return null;
+      var r = QP.cerca(D, v, 1, null)[0]; if (r) { $(campo).value = r.breve; $(campo + "-lista").textContent = ""; }
+      return r || null;
+    }
+    if (!sel.da) sel.da = primo("da");
+    if (!sel.a && $("a").value.trim()) sel.a = primo("a");
+    if (!sel.da) { annuncia("Prima scrivi da dove parti nel campo Parto da."); $("da").focus(); return; }
     quanti = { andata: 6, ritorno: 6 };
     store("qp-ultimo", { da: sel.da, a: sel.a });
     $("risposta").hidden = false;
