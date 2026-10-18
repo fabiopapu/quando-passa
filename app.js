@@ -296,8 +296,7 @@
     var media = window.matchMedia && modi.some(function (m) { return matchMedia("(display-mode: " + m + ")").matches; });
     var daApp = /[?&]app=1\b/.test(location.search) || document.referrer.indexOf("android-app://") === 0;
     try { if (daApp) sessionStorage.setItem("qp-app", "1"); daApp = daApp || sessionStorage.getItem("qp-app") === "1"; } catch (e) {}
-    if (media || navigator.standalone === true || daApp) { store("qp-installata", true); return true; }
-    return store("qp-installata") === true;  // installata su questo dispositivo o pulsante nascosto a mano
+    return media || navigator.standalone === true || daApp;
   }
   function istruzioni() {
     var ua = navigator.userAgent;
@@ -311,9 +310,11 @@
   // Il riquadro compare solo nel browser, quando il browser stesso dice che l'app si può installare
   // (evento beforeinstallprompt, che nell'app già installata non arriva mai). Su iPhone quell'evento non
   // esiste: lì si mostrano le istruzioni, ma solo fuori dall'app installata.
-  if (!installata() && /iPhone|iPad|iPod/.test(navigator.userAgent) && navigator.standalone === false) {
+  // nel sito (non nell'app installata) il riquadro c'è sempre: col pulsante del browser se il browser lo offre,
+  // altrimenti premendo Installa l'app si sentono le istruzioni per quel browser
+  if (!installata()) {
     $("installa").hidden = false;
-    $("installa-aiuto").textContent = istruzioni();
+    setTimeout(function () { if (!promptInstall) $("installa-aiuto").textContent = istruzioni(); }, 2000);
   }
   window.addEventListener("beforeinstallprompt", function (e) {
     e.preventDefault(); promptInstall = e;
@@ -321,7 +322,7 @@
     $("installa").hidden = false;
     $("installa-aiuto").textContent = "Premi il pulsante: il browser ti chiederà la conferma e l'app comparirà tra le tue app.";
   });
-  window.addEventListener("appinstalled", function () { store("qp-installata", true); $("installa").hidden = true; annuncia("App installata. La trovi tra le tue app."); });
+  window.addEventListener("appinstalled", function () { $("installa").hidden = true; annuncia("App installata. La trovi tra le tue app."); });
   $("installa-btn").addEventListener("click", function () {
     if (!promptInstall) { annuncia(istruzioni()); return; }
     promptInstall.prompt();
