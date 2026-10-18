@@ -35,19 +35,24 @@
     return "Le zone caricate sono: " + Object.keys(zone).join(", ") + ".";
   }
   function a_(n) { return /^[AaEe]/.test(n) ? "ad " + n : "a " + n; }
-  function linea(t) { return (t.linea.numero ? "Linea " + t.linea.numero : "Linea " + t.linea.nome); }
+  function nomeLinea(L) {
+    if (/^Linea\b/i.test(L.nome)) return L.nome.replace(/\s*[–-]\s*/g, " ").replace(/\s+/g, " ").trim();
+    return L.numero ? "Linea " + L.numero : "Linea " + L.nome;
+  }
+  function linea(t) { return nomeLinea(t.linea); }
+  function cambi(n) { return n === 1 ? "un cambio" : n + " cambi"; }
 
   function carica() {
     fetch("orari.json", { cache: "no-cache" }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (dati) {
-        D = dati; $("caricamento").textContent = copertura();
+        D = QP.prepara(dati); $("caricamento").textContent = copertura();
         var g = new Date(D.generato), sedi = {};
         D.linee.forEach(function (L) { sedi[L.sede] = 1; });
         $("stato-dati").textContent = "Ultimo controllo degli orari: " + g.toLocaleDateString("it-IT") + " alle " +
           g.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) + ". Linee caricate: " + D.linee.length +
           ", zone: " + Object.keys(sedi).map(function (s) { return (D.sedi && D.sedi[s]) || s; }).join(", ") + "." +
           // per capire i problemi: versione dell'app e se è aperta come app installata o nel browser
-          " Versione app: 18 ottobre, 16:00. Aperta come: " + (["standalone", "fullscreen", "minimal-ui"].some(function (m) { return window.matchMedia && matchMedia("(display-mode: " + m + ")").matches; }) ? "app installata" : "sito nel browser") + ".";
+          " Versione app: 18 ottobre, 17:30. Aperta come: " + (["standalone", "fullscreen", "minimal-ui"].some(function (m) { return window.matchMedia && matchMedia("(display-mode: " + m + ")").matches; }) ? "app installata" : "sito nel browser") + ".";
         mostraPreferiti();
         var ult = store("qp-ultimo");
         if (ult) imposta(ult, false);
@@ -117,11 +122,58 @@
     var s = QP.hhmm(t1.parte) + ", arrivo alle " + QP.hhmm(ult.arriva) + " (" + QP.durata(ult.arriva - t1.parte) + ")";
     var fine = conA ? ", scendi " + a_(nomeF(ult.a)) : "";
     if (v.length === 1) s += ". " + linea(t1) + (conDa ? ", da " + nomeF(t1.da) : "") + fine + ".";
-    else s += ", con un cambio. " + linea(t1) + (conDa ? " da " + nomeF(t1.da) : "") + " fino " + a_(nomeF(t1.a)) +
-      ", poi " + linea(v[1]).toLowerCase() + " alle " + QP.hhmm(v[1].parte) + fine + ".";
+    else s += ", con " + cambi(v.length - 1) + ". " + v.map(function (t, k) {
+      var prima = k === 0 ? linea(t) + " da " + nomeF(t.da)
+        : "poi l" + linea(t).slice(1) + (nomeF(t.da) !== nomeF(v[k - 1].a) ? " da " + nomeF(t.da) : "") + " alle " + QP.hhmm(t.parte);
+      return prima + (k < v.length - 1 ? " fino " + a_(nomeF(t.a)) : "");
+    }).join(", ") + fine + ".";
+    s = s.replace(/\.\.$/, ".");
     var dub = v.filter(function (t) { return t.dubbio; }).map(function (t) { return t.dubbio; });
     if (dub.length) s += " Corsa da verificare: " + dub[0] + ".";
     return s;
+  }
+
+
+  // --- finestra con l'itinerario passo passo
+  function itinerario(v, daChi) {
+    var dlg = $("itinerario");
+    if (!dlg) {
+      dlg = el("dialog"); dlg.id = "itinerario"; dlg.setAttribute("aria-labelledby", "itin-titolo");
+      dlg.addEventListener("close", function () { if (dlg._torna) dlg._torna.focus(); });
+      document.body.appendChild(dlg);
+    }
+    dlg.textContent = ""; dlg._torna = daChi;
+    var t1 = v[0], ult = v[v.length - 1];
+    var h = el("h2", null, "Itinerario: da " + nomeF(t1.da) + " " + a_(nomeF(ult.a))); h.id = "itin-titolo"; h.tabIndex = -1;
+    dlg.appendChild(h);
+    dlg.appendChild(el("p", null, "Partenza alle " + QP.hhmm(t1.parte) + ", arrivo alle " + QP.hhmm(ult.arriva) + ", " +
+      QP.durata(ult.arriva - t1.parte) + " in tutto, " + (v.length === 1 ? "senza cambi" : "con " + cambi(v.length - 1)) + "."));
+    var ol = el("ol", "passi");
+    v.forEach(function (t, k) {
+      if (k > 0) {
+        var prev = v[k - 1], attesa = t.parte - prev.arriva;
+        ol.appendChild(el("li", null, (nomeF(t.da) !== nomeF(prev.a) ? "Vai a piedi alla fermata " + nomeF(t.da) + ", è la stessa zona. " : "") +
+          "Aspetti " + QP.durata(attesa) + " il prossimo bus."));
+      }
+      var li = el("li", null, "Alle " + QP.hhmm(t.parte) + " sali sulla " + linea(t) + " a " + nomeF(t.da) + ", direzione " + t.verso.replace(/ - /g, ", ") + ".");
+      var mezzo = t.s ? t.s.slice(t.i + 1, t.j) : [];
+      if (mezzo.length) {
+        var det = el("details"), sum = el("summary", null, "Fermate intermedie: " + mezzo.length);
+        det.appendChild(sum);
+        var ul = el("ul");
+        mezzo.forEach(function (x) { ul.appendChild(el("li", null, QP.hhmm(x[1]) + ", " + nomeF(x[0]))); });
+        det.appendChild(ul); li.appendChild(det);
+      }
+      ol.appendChild(li);
+      ol.appendChild(el("li", null, "Alle " + QP.hhmm(t.arriva) + " scendi " + a_(nomeF(t.a)) + (k === v.length - 1 ? ". Sei arrivato." : ".")));
+      if (t.dubbio) ol.appendChild(el("li", null, "Attenzione, corsa da verificare: " + t.dubbio + "."));
+    });
+    dlg.appendChild(ol);
+    var b = el("button", null, "Chiudi"); b.type = "button";
+    b.addEventListener("click", function () { dlg.close(); });
+    dlg.appendChild(b);
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
+    h.focus();
   }
 
   function blocco(contenitore, titolo, chiave, lista, conDa, conA, vuoto) {
@@ -134,6 +186,10 @@
       var o = el("span", "orario", QP.hhmm(v[0].parte) + " → " + QP.hhmm(v[v.length - 1].arriva)); o.setAttribute("aria-hidden", "true");
       li.appendChild(o);
       li.appendChild(el("span", null, "Parte alle " + descriviViaggio(v, conDa, conA)));
+      var bi = el("button", "sec", "Itinerario"); bi.type = "button";
+      bi.setAttribute("aria-label", "Itinerario passo passo del viaggio delle " + QP.hhmm(v[0].parte));
+      bi.addEventListener("click", function () { itinerario(v, bi); });
+      li.appendChild(bi);
       ol.appendChild(li);
     });
     sec.appendChild(ol);
@@ -145,6 +201,14 @@
     contenitore.appendChild(sec);
   }
 
+  function zona(ids) {
+    var s = D.fermate_sede ? D.fermate_sede[ids[0]] : null;
+    return (s && D.sedi && D.sedi[s]) || s || "";
+  }
+  function testoScollegato(c) {
+    return "Da " + sel.da.breve + " " + a_(sel.a.breve) + " non c'è nessun collegamento con le linee Arriva che conosco, nemmeno cambiando più volte bus." +
+      (c.zone[0] && c.zone[1] && c.zone[0] !== c.zone[1] ? " " + sel.da.breve + " è nella zona di " + c.zone[0] + ", " + sel.a.breve + " in quella di " + c.zone[1] + ", e le linee delle due zone non hanno fermate in comune." : "");
+  }
   function calcola() {
     var d = giorno(), da = sel.da.ids, now = dopo();
     var g = QP.infoGiorno(d, D.calendario, D.fermate_sede ? D.fermate_sede[da[0]] : "aosta");
@@ -154,6 +218,8 @@
         .sort(function (x, y) { return x.prossime[0].t - y.prossime[0].t; });
       return { g: g, now: now, gruppi: gruppi };
     }
+    // diretti o con un cambio; se non bastano, con più cambi
+    function trova(o, x, giorno_, t) { var r = QP.viaggi(D, o, x, giorno_, t); return r.length ? r : QP.itinerari(D, o, x, giorno_, t, 8); }
     var a = sel.a.ids, andata = QP.viaggi(D, da, a, d, now), domani = false, allargato = false;
     // dalla fermata scelta non passa nessun bus per quel tragitto: prova le altre fermate degli stessi paesi
     if (!andata.length) {
@@ -163,13 +229,20 @@
         if (prova.length || $("giorno").value === "0") { da = da2; a = a2; andata = prova; allargato = true; }
       }
     }
+    if (!andata.length) andata = QP.itinerari(D, da, a, d, now, 8);
+    if (!andata.length) {
+      var daT = QP.stessoPaese(D, da), aT = QP.stessoPaese(D, a);
+      if (!QP.collegato(D, daT, aT)) return { g: g, now: now, andata: [], ritorno: [], dopoR: now, scollegato: true, zone: [zona(daT), zona(aT)] };
+      var pr2 = QP.itinerari(D, daT, aT, d, now, 8);
+      if (pr2.length) { da = daT; a = aT; andata = pr2; allargato = true; }
+    }
     // oggi non ci sono più bus: mostra subito quelli di domani invece di una pagina vuota
     if (!andata.length && $("giorno").value === "0" && !$("ora").value) {
       d = new Date(d.getTime() + 864e5); now = 0; domani = true;
-      andata = QP.viaggi(D, da, a, d, 0);
+      andata = trova(da, a, d, 0);
     }
     var dopoR = andata.length ? andata[0][andata[0].length - 1].arriva : now;
-    var ritorno = QP.viaggi(D, a, da, d, dopoR);
+    var ritorno = trova(a, da, d, dopoR);
     return { g: g, now: now, andata: andata, ritorno: ritorno, dopoR: dopoR, domani: domani, allargato: allargato };
   }
 
@@ -195,12 +268,17 @@
     }
     var mDa = sel.da.ids.length > 1, mA = sel.a && sel.a.ids.length > 1;
     if (sel.a) {
+      if (c.scollegato) {
+        var sc = el("section", "field"), hs = el("h2", null, "Da " + sel.da.breve + " " + a_(sel.a.breve)); hs.id = "h-andata"; hs.tabIndex = -1;
+        sc.appendChild(hs); sc.appendChild(el("p", "box", testoScollegato(c))); box.appendChild(sc);
+      } else {
       if (c.allargato) box.appendChild(el("p", "box", "Dalla fermata che hai scelto non passano bus per questo tragitto: ti mostro quelli dalle altre fermate dello stesso paese. Guarda da quale fermata parte ognuno."));
       if (c.domani) box.appendChild(el("p", "box", "Oggi non ci sono più bus per questo tragitto. Ecco quelli di domani."));
       blocco(box, (c.domani ? "Domani, andata" : "Andata") + ": da " + sel.da.breve + " " + a_(sel.a.breve), "andata", c.andata, mDa, mA,
         "Nessun bus " + (oggi && !$("ora").value ? "da adesso a fine giornata" : "in questo giorno dopo l'orario scelto") + " per questo tragitto, anche con un cambio.");
       blocco(box, "Ritorno: da " + sel.a.breve + " " + a_(sel.da.breve) + (c.andata.length ? ", dopo il tuo arrivo delle " + QP.hhmm(c.dopoR) : ""),
         "ritorno", c.ritorno, mA, mDa, "Nessun bus di ritorno in questo giorno dopo quell'ora.");
+      }
     } else {
       var sec = el("section", "field"), h = el("h2", null, "Partenze da " + sel.da.breve); h.id = "h-andata"; h.tabIndex = -1; sec.appendChild(h);
       if (!c.gruppi.length) sec.appendChild(el("p", "box", "Nessun'altra partenza in questo giorno."));
@@ -208,7 +286,7 @@
       c.gruppi.forEach(function (gr) {
         var li = el("li"), p0 = gr.prossime[0];
         var o = el("span", "orario", QP.hhmm(p0.t)); o.setAttribute("aria-hidden", "true"); li.appendChild(o);
-        li.appendChild(el("span", null, "Alle " + QP.hhmm(p0.t) + ", " + (gr.linea.numero ? "Linea " + gr.linea.numero : "Linea " + gr.linea.nome) + " verso " + gr.verso.replace(/ - /g, ", ") +
+        li.appendChild(el("span", null, "Alle " + QP.hhmm(p0.t) + ", " + nomeLinea(gr.linea) + " verso " + gr.verso.replace(/ - /g, ", ") +
           ", da " + nomeF(p0.da) +
           (oggi && !$("ora").value ? ", " + QP.traQuanto(p0.t - c.now) : "") +
           (gr.prossime.length > 1 ? ". Poi alle " + gr.prossime.slice(1, 3).map(function (x) { return QP.hhmm(x.t); }).join(" e alle ") : "") + "." +
@@ -230,10 +308,12 @@
     if (!sel.a) {
       if (!c.gruppi.length) return "Nessun'altra partenza da " + sel.da.breve + ".";
       return "Partenze da " + sel.da.breve + ". " + c.gruppi.slice(0, 4).map(function (gr) {
-        return (gr.linea.numero ? "Linea " + gr.linea.numero : "Linea " + gr.linea.nome) + " verso " + gr.verso.replace(/ - /g, ", ") + " alle " + QP.hhmm(gr.prossime[0].t) + " da " + nomeF(gr.prossime[0].da);
+        return nomeLinea(gr.linea) + " verso " + gr.verso.replace(/ - /g, ", ") + " alle " + QP.hhmm(gr.prossime[0].t) + " da " + nomeF(gr.prossime[0].da);
       }).join(". ") + ".";
     }
+    if (c.scollegato) return testoScollegato(c);
     return (c.allargato ? "Dalla fermata scelta non passano bus per questo tragitto, ecco quelli dalle altre fermate dello stesso paese. " : "") +
+      (c.scollegato ? "" : "") +
       (c.domani ? "Oggi non ci sono più bus. Domani, andata da " : "Andata da ") + sel.da.breve + " " + a_(sel.a.breve) + ": " + (c.andata.length ? prime(c.andata, mDa, mA) : "nessun bus.") +
       " Ritorno: " + (c.ritorno.length ? prime(c.ritorno, mA, mDa) : "nessun bus dopo il tuo arrivo.");
   }
