@@ -304,7 +304,6 @@
     $("installa-aiuto").textContent = "Premi il pulsante: il browser ti chiederà la conferma e l'app comparirà tra le tue app.";
   });
   window.addEventListener("appinstalled", function () { store("qp-installata", true); $("installa").hidden = true; annuncia("App installata. La trovi tra le tue app."); });
-  $("installa-no").addEventListener("click", function () { store("qp-installata", true); $("installa").hidden = true; annuncia("Fatto, il riquadro per installare non comparirà più su questo dispositivo."); });
   $("installa-btn").addEventListener("click", function () {
     if (!promptInstall) { annuncia(istruzioni()); return; }
     promptInstall.prompt();
